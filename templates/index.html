@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Oracle DB Data Fetcher</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+
+    <script>
+    function showButtons() {
+        var selectedValue = document.getElementById("report_type").value;
+        var submit_payment = document.getElementById("submit_payment");
+        var submit_upload = document.getElementById("submit_upload");
+        var inner_div = document.getElementById("inner_div");
+        var statusId = document.getElementById("statusId");
+        console.log("inside showbutton");
+        if (selectedValue === "payment_completed") {
+            console.log("inside payment_completed if ");
+            submit_payment.style.display = "block";
+            submit_upload.style.display = "none";
+            inner_div.style.display = "block";
+            statusId.style.display = "block";
+        } else if (selectedValue === "file_upload") {
+            submit_payment.style.display = "none";
+            submit_upload.style.display = "block";
+            inner_div.style.display = "block";
+            statusId.style.display = "none";
+        } else {
+            submit_payment.style.display = "none";
+            submit_upload.style.display = "none";
+            inner_div.style.display = "none";
+            statusId.style.display = "none";
+        }
+    }
+
+    function downloadExcelData() {
+        const table = document.getElementById('dataTable');
+        const rows = table.rows;
+        const excelData = [];
+
+        for (let i = 0; i < rows.length; i++) {
+            const cells = rows[i].cells;
+                const rowData = {};
+                for (let j = 0; j < cells.length; j++) {
+                    rowData[table.rows[0].cells[j].innerText] = cells[j].innerText;
+                }
+                excelData.push(rowData);
+            }
+            console.log(" downloadExcel Data");
+            console.log(excelData);
+
+        const formData = JSON.stringify(excelData);
+        fetch('/download', {
+            method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+            body: formData
+            
+            })
+            //.then(response => response.json())
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'data.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            })
+            .catch(error => console.error('Error:', error));
+
+    }
+
+    function validateFormData(event) {
+        //event.preventDefault(); // Prevent form submission
+
+        // Clear previous errors
+        document.querySelectorAll('.error').forEach(e => e.textContent = '');
+
+        let isValid = true;
+        var reportType = document.getElementById("report_type").value;
+        var fromDate = new Date(document.getElementById("date_input").value);
+        var toDate = new Date(document.getElementById("todate_input").value);
+        var status = document.getElementById("status_input").value;
+        var submitButton = document.getElementById("submit_upload").value;
+        const today = new Date();
+        console.log("inside the validate", submitButton);
+       // From Date validation
+       if (isNaN(fromDate)) {
+                document.getElementById('fromDateError').textContent = 'From Date is required.';
+                isValid = false;
+        } else if (fromDate > today) {
+                document.getElementById('fromDateError').textContent = 'From Date cannot be Future Date.';
+                isValid = false;
+        }
+
+        // To Date validation
+        if (isNaN(toDate)) {
+                document.getElementById('toDateError').textContent = 'To Date is required.';
+                isValid = false;
+        } else if (fromDate && toDate < fromDate) {
+                document.getElementById('toDateError').textContent = 'To Date must be after or equal to From Date.';
+                isValid = false;
+        }
+
+        // Dropdown validation
+        if (reportType === "payment_completed") {
+            console.log("inside the validate status");
+            if (!status) {
+                document.getElementById('statusError').textContent = 'Please select a valid status.';
+                isValid = false;
+            }
+        }
+
+        if (!isValid){
+            event.preventDefault();
+        }
+        
+        if (isValid) {
+            console.log("inside the validate", status);
+            document.getElementById("myForm").submit();
+            document.getElementById('spinner').style.display = 'block';
+        }
+
+        
+    }
+    
+    </script>
+        
+
+</head>
+<style>
+    #spinner {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 24px;
+        color: #333;
+    }
+</style>
+<body onload="showButtons()">
+<div class="App-header">
+    <div style="width: 1000px;display: flex;text-align: inherit;">
+        <svg></svg>
+        <div>
+            <h1 style="font-family: Ariel, sans-serif; color:white;display: flex;max-width: 1000px;margin: revert;margin-left: 150px;">App</h1>
+        </div>
+    </div>
+</div>
+<div id="spinner">Loading... ⏳</div>
+<div class="container">
+    <form id="myForm" method="POST"  action="/handle_action"  >
+   
+    
+        <label for="report_type">Report Type:</label>
+        <select id="report_type" name="report_type" value="{{reportType}}" style="margin-bottom: 20px;"  onchange="showButtons()">
+            <option value="select_value" {% if reportType == 'select_value' %}selected{% endif %}>---Select Value---</option>
+            <option value="payment_completed" {% if reportType == 'payment_completed' %}selected{% endif %}>Payment Completed</option>
+            <option value="file_upload" {% if reportType == 'file_upload' %}selected{% endif %}>Transaction File Upload</option>
+        </select>
+        <div id="inner_div" style="display:none;">
+           
+            <label for="date_input">From Date:</label>
+            <input type="date" id="date_input" name="date_input" value ="{{ dateInput }}">
+            <span class="error" id="fromDateError" style="color:red;"></span>
+            &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
+
+            
+            <label for="todate_input">To Date:</label>
+            <input type="date" id="todate_input" name="todate_input" value ="{{ toDateInput }}">
+            <span class="error" id="toDateError" style="color:red;"></span>
+            <br>
+            <div id="statusId" style="display:none;">
+                <label for="status_input">Status:</label>
+                &nbsp; &nbsp; &nbsp;
+                <select id="status_input" name="status_input" style="margin-bottom: 20px;" value ="{{ statusInput }}" >
+                    <option value="" {% if statusInput == '' %}selected{% endif %}>--Select Status--</option>
+                    <option value="WILLPROCESSON" {% if statusInput == 'WILLPROCESSON' %}selected{% endif %}>WillProcessOn</option>
+                    <option value="APPROVAL_PENDING" {% if statusInput == 'APPROVAL_PENDING' %}selected{% endif %}>Approval Pending</option>
+                    <option value="Completed" {% if statusInput == 'Completed' %}selected{% endif %}>Completed</option>
+                </select>
+                <span class="error" id="statusError" style="color:red;"></span>
+            </div>
+            <table style="border: none; width: 60%; ">
+                <tr>
+                    <td style="width: 20%;">
+                        <button id="submit_payment" type="submit" name="action" style="display:none;" value="payments" onclick="validateFormData(event)">Payment Submit</button>
+                        <button id="submit_upload" type="submit" name="action" style="display:none;" value="fileupload" onclick="validateFormData(event)">File Submit</button>
+                    </td>
+                    <td>
+                        <button id="submit_cancel" type="submit" name="action" value="cancel">Cancel</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    
+    </form>
+</div>
+<br>
+{% if dataPending %}
+<div class="container">
+    <h2>Results:</h2>
+    <a href="#" onclick="downloadExcelData()">Download Excel</a>
+    <br>
+    <table id="dataTable">
+        <tr class="table-tr-th-class" >
+            <th class="table-tr-th-class">Payment Type</th>
+            <th class="table-tr-th-class">Payment Status</th>
+            <th class="table-tr-th-class">Payment Create Date</th>
+            <th class="table-tr-th-class">Payment Due Date</th>
+            <th class="table-tr-th-class">Payment Count</th>
+            <!-- Add more columns as needed -->
+        </tr>
+        {% for row in dataPending %}
+        <tr class="table-tr-th-class">
+            <td class="table-tr-th-class">{{ row.mop }}</td>
+            <td class="table-tr-th-class">{{ row.status }}</td>
+            <td class="table-tr-th-class">{{ row.datecreate }}</td>
+            <td class="table-tr-th-class">{{ row.datedue }}</td>
+            <td class="table-tr-th-class">{{ row.count }}</td>
+            <!-- Add more columns as needed -->
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+{% endif %}
+
+{% if dataComplete %}
+<div class="container">
+    <h2>Results:</h2>
+    <a href="#" onclick="downloadExcelData()">Download Excel</a>
+    <br>
+    <table id="dataTable">
+        <tr class="table-tr-th-class" >
+            <th class="table-tr-th-class">Date</th>
+            <th class="table-tr-th-class">Time</th>
+            <th class="table-tr-th-class">Payment Count</th>
+            <th class="table-tr-th-class">Payment Type</th>
+            <th class="table-tr-th-class">Sum of Amount</th>
+            <th class="table-tr-th-class">Amount Currency</th>
+            <th class="table-tr-th-class">Status</th>
+            <!-- Add more columns as needed -->
+        </tr>
+        {% for row in dataComplete %}
+        <tr class="table-tr-th-class">
+            <td class="table-tr-th-class">{{ row.date }}</td>
+            <td class="table-tr-th-class">{{ row.time }}</td>
+            <td class="table-tr-th-class">{{ row.count }}</td>
+            <td class="table-tr-th-class">{{ row.mop }}</td>
+            <td class="table-tr-th-class">{{ row.sum }}</td>
+            <td class="table-tr-th-class">{{ row.currency }}</td>
+            <td class="table-tr-th-class">{{ row.status }}</td>
+            <!-- Add more columns as needed -->
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+{% endif %}
+
+
+{% if uploaddata %}
+<div class="container">
+    <h2>Results:</h2>
+    <a href="#" onclick="downloadExcelData()">Download Excel</a>
+    <br>
+    <table id="dataTable">
+        <tr class="table-tr-th-class" >
+            <th class="table-tr-th-class">Date</th>
+            <th class="table-tr-th-class">Time</th>
+            <th class="table-tr-th-class">FPS</th>
+            <th class="table-tr-th-class">FPS SDMC</th>
+            <th class="table-tr-th-class">BACS</th>
+
+            <th class="table-tr-th-class">BACS SDMC</th>
+            <th class="table-tr-th-class">CHAPS</th>
+            <th class="table-tr-th-class">SEPACT</th>
+            <th class="table-tr-th-class">INTL</th>
+            <th class="table-tr-th-class">IGT</th>
+            <!-- Add more columns as needed -->
+        </tr>
+        {% for row in uploaddata %}
+        <tr class="table-tr-th-class">
+            <td class="table-tr-th-class">{{ row.uploaddate }}</td>
+            <td class="table-tr-th-class">{{ row.Time }}</td>
+            <td class="table-tr-th-class">{{ row.fps }}</td>
+            <td class="table-tr-th-class">{{ row.fps_sdmc }}</td>
+            <td class="table-tr-th-class">{{ row.bacs }}</td>
+
+            <td class="table-tr-th-class">{{ row.bacs_sdmc }}</td>
+            <td class="table-tr-th-class">{{ row.chaps }}</td>
+            <td class="table-tr-th-class">{{ row.sepact }}</td>
+            <td class="table-tr-th-class">{{ row.international }}</td>
+            <td class="table-tr-th-class">{{ row.igt }}</td>
+            <!-- Add more columns as needed -->
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+{% endif %}
+
+{% if noResult == "none" %}
+<div class="container">
+    <h2>No Results</h2>
+</div>
+{% endif %}
+</body>
+</html>
